@@ -6,8 +6,7 @@
 *
 * Implementation of the Advanced Encryption Standard Algroithm
 * Documentation is provided here: https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
-* I got the s tables from here: https://www.samiam.org/s-box.html
-*
+* 
 *********************************************************************/
 
 /*************************** HEADER FILES ***************************/
@@ -16,61 +15,15 @@
 #include <stdio.h>
 #include "AES.h"
 
-/****************************** MACROS ******************************/
-
-#define ROTRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
-
-
-/**************************** Algorithm Constants ***********************/
-static uint8_t sbox[256] = {
-	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
-	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
-	0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
-	0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
-	0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84,
-	0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf,
-	0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8,
-	0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2,
-	0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73,
-	0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb,
-	0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
-	0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08,
-	0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a,
-	0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
-	0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
-	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
-};
-
-static uint8_t invsbox[256] = {
-	0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
-	0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
-	0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e,
-	0x08, 0x2e, 0xa1, 0x66, 0x28, 0xd9, 0x24, 0xb2, 0x76, 0x5b, 0xa2, 0x49, 0x6d, 0x8b, 0xd1, 0x25,
-	0x72, 0xf8, 0xf6, 0x64, 0x86, 0x68, 0x98, 0x16, 0xd4, 0xa4, 0x5c, 0xcc, 0x5d, 0x65, 0xb6, 0x92,
-	0x6c, 0x70, 0x48, 0x50, 0xfd, 0xed, 0xb9, 0xda, 0x5e, 0x15, 0x46, 0x57, 0xa7, 0x8d, 0x9d, 0x84,
-	0x90, 0xd8, 0xab, 0x00, 0x8c, 0xbc, 0xd3, 0x0a, 0xf7, 0xe4, 0x58, 0x05, 0xb8, 0xb3, 0x45, 0x06,
-	0xd0, 0x2c, 0x1e, 0x8f, 0xca, 0x3f, 0x0f, 0x02, 0xc1, 0xaf, 0xbd, 0x03, 0x01, 0x13, 0x8a, 0x6b,
-	0x3a, 0x91, 0x11, 0x41, 0x4f, 0x67, 0xdc, 0xea, 0x97, 0xf2, 0xcf, 0xce, 0xf0, 0xb4, 0xe6, 0x73,
-	0x96, 0xac, 0x74, 0x22, 0xe7, 0xad, 0x35, 0x85, 0xe2, 0xf9, 0x37, 0xe8, 0x1c, 0x75, 0xdf, 0x6e,
-	0x47, 0xf1, 0x1a, 0x71, 0x1d, 0x29, 0xc5, 0x89, 0x6f, 0xb7, 0x62, 0x0e, 0xaa, 0x18, 0xbe, 0x1b,
-	0xfc, 0x56, 0x3e, 0x4b, 0xc6, 0xd2, 0x79, 0x20, 0x9a, 0xdb, 0xc0, 0xfe, 0x78, 0xcd, 0x5a, 0xf4,
-	0x1f, 0xdd, 0xa8, 0x33, 0x88, 0x07, 0xc7, 0x31, 0xb1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xec, 0x5f,
-	0x60, 0x51, 0x7f, 0xa9, 0x19, 0xb5, 0x4a, 0x0d, 0x2d, 0xe5, 0x7a, 0x9f, 0x93, 0xc9, 0x9c, 0xef,
-	0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61,
-	0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
-};
-
-static const uint32_t Rcon[10] = {
-	0x01000000, 0x02000000, 0x04000000, 0x08000000, 0x10000000, 0x20000000, 0x40000000, 0x80000000,0x1b000000,0x36000000
-};
-
 /*********************** Implementations ***********************/
 
-// a times b = c
+/// a x b in GF(2^8)
 uint8_t AES_multCoef(uint8_t a, uint8_t b){
 	uint8_t A = a;
 	uint8_t B = b;
 	
+	// Loop multiplies A by x each time and then will add it to the running total if B has a coefficient of 1 in that place
+	// This works because multiplication is linear and can be expanded into coefficients * basis elements added together
 	uint8_t c = (0x1&B)*A;
 	B >>= 1;
 	while (B > 0){
@@ -91,26 +44,31 @@ void AES_xtimes(uint8_t a, uint8_t* b){
 	}
 }
 
-// a x b = c
-void AES_multColumn(uint32_t a, uint32_t b, uint32_t* c){
+/// a x b in the ring of 4th degree polynomials over GF(2^8)
+uint32_t AES_multColumn(uint32_t a, uint32_t b){
 	uint32_t A = a;
-	
+	uint32_t c = 0;
+
+	// There is a cyclic pattern with the matrix you multiply by, so I realized I could just start at the bottom 
+	// and go up while rotating the matrix word
 	for (int i = 0; i < 4; i++){
-		c[0] <<= 8;
-		c[0] |= AES_multCoef(AES_getByte(a,3), AES_getByte(b,0))^AES_multCoef(AES_getByte(a,2), AES_getByte(b,1))
-				^AES_multCoef(AES_getByte(a,1), AES_getByte(b,2))^AES_multCoef(AES_getByte(a,0), AES_getByte(b,3));
+		c <<= 8;
+		c |= AES_multCoef(AES_getByte(A,3), AES_getByte(b,0))^AES_multCoef(AES_getByte(A,2), AES_getByte(b,1))
+			^AES_multCoef(AES_getByte(A,1), AES_getByte(b,2))^AES_multCoef(AES_getByte(A,0), AES_getByte(b,3));
 		A = (A >> 24) | (A << 8);
 	}
+	return c;
 
 }
 
-//Shifts the rows from the right by shiftnum mod 4
-//inverse uses shiftnum 3, reg uses shiftnum 1
+/// Performs the ShiftRows function described in the AES Documentation
+/// Considers the State as rows of bytes and will shift them by the shiftnum*row mod 4
 void AES_ShiftRows(AES_state* state, uint8_t shiftnum){
 	uint32_t columns[4] = {0,0,0,0};
 	for (int i = 0; i < 4; i ++){
 		uint32_t mask = 0xff;
-		for(int j = 0; j < 4; i ++){
+		for(int j = 0; j < 4; j ++){
+			// Shifts the mask around to get the correct byte in the column that is shifted appropriately
 			columns[i] |= (state->digest[(i+shiftnum*j)&3])&mask;
 			mask <<= 8;
 		}
@@ -120,36 +78,46 @@ void AES_ShiftRows(AES_state* state, uint8_t shiftnum){
 	}
 }
 
-// Subs the bytes in a state, use Sbox for forward invSbox for backwards
-void AES_SubBytes(AES_state* state, uint8_t* table){
+/// Performs the SubBytes function described in the AES Documentation
+/// Substitutes bytes in the state box accoreding to a table that is provided
+/// table should be sbox for Ciphering and invsbox for deciphering
+void AES_SubBytes(AES_state* state, const uint8_t* table){
 	for (int i = 0; i < 4; i++){
 		uint32_t res = 0;
 		for (int j = 0; j< 4; j++) {
+			// The table is 16x16 so the first Nibble gives the row, second gives the column
 			res |= ((uint32_t) table[AES_getByte(state->digest[i],j)]) << (j << 3);
 		}
 		state->digest[i] = res;
 	}
 }
 
-uint32_t AES_SubColumn(uint32_t col, uint8_t* table){
+/// Performs the SubBytes function described in the AES Documentation but only on one 32 bit number
+/// Col is the number to be subbed, table is the table subbing is according to
+uint32_t AES_SubColumn(uint32_t col, const uint8_t* table){
 	uint32_t res = 0;
-	for (int j = 0; j< 4; j++) {
-		res |= ((uint32_t) table[AES_getByte(col,j)]) << (j << 3);
+	for (int j = 0; j < 4; j++) {
+		res |= ((uint32_t) table[AES_getByte(col,j)]) << (j << 3); // The table is 16x16 so the first Nibble gives the row, second gives the column
 	}
 	return res;
 }
 
+/// Performs the Mix Columns function described in the AES Documentation
+/// State is the current state of the AES Box, ax is a polynomial represented as a 32 bit number which will
+/// be multiplied to the state columns
 void AES_MixColumns(AES_state* state, uint32_t ax){
 	for (int i = 0; i < 4; i++ ){
-		AES_multColumn(state->digest[i],ax,&state->digest[i]);
+		state->digest[i] = AES_multColumn(ax,state->digest[i]);
 	}
 }
 
+/// Add Round key Described in the AES Documentation
+/// XORs the columns with the corresponding Key Register columns for the current round
 void AES_AddRoundKey(AES_state* state, uint32_t* w){
 	for (int i = 0; i < 4; i++){
-		state->digest[i] = state->digest[i]^w[4*state->round+1];
+		state->digest[i] = state->digest[i]^w[4*state->round+i];
 	}
-	state->round+=1;
+	state->round += 1;
 }
 
 //Variable key size Key expansion into the key register
@@ -159,31 +127,53 @@ void AES_KeyExpansion(uint32_t* key, uint32_t* w, uint8_t Nk, uint8_t Nr){
 	uint32_t temp;
 
 	while (i < Nk){
-		w[i] = key[i];
+		w[i] = key[i]; // The key is the first Nkth bytes
 		i++;
 	}
 	
 	while (i < 4*(Nr+1)){
 		temp = w[i-1];
 		if (i % Nk == 0){
-			temp = AES_SubColumn((temp << 8) | (temp >> 24),sbox) ^ Rcon[i/Nk];
+			// The way I did my endians made it so I actually rotate the opposite way to get the right result (aka rotate right)
+			// Also Rcon had to be backwards
+			temp = AES_SubColumn((temp >> 8) | (temp << 24),AES_sbox) ^ AES_Rcon[i/Nk - 1];
 		} else if (Nk > 6 && i % Nk == 4){
-			temp = AES_SubColumn(temp,sbox);
+			temp = AES_SubColumn(temp,AES_sbox);
 		}
 		w[i] = w[i - Nk] ^ temp;
 		i++;
 	}
 }
 
-///Ciphers or DeCiphers the state digest
-///For Ciphering: ax = AES_a, table = sbox, shiftnum = 1
-///For Deciphering: ax = AES_ainv, table = invsbox, shiftnum = 3
-///For the output refer to the final state digest
-void AES_Cipher(uint32_t* key, AES_state* state, uint32_t ax, uint8_t* table, uint8_t shiftnum, uint8_t Nk, uint8_t Nr){
-	uint32_t w[4*(Nr+1)];
-	AES_KeyExpansion(key,w,Nk,Nr);
+//Creates the manipulated Key Register for deciphering
+void AES_DW(uint32_t* w, uint8_t Nr){
+	uint32_t dw[4*(Nr+1)]; // This will be the new key register but in backwards order (with 4x32 blocks in the same order)
+	for(int j = 0; j < 4; j++){
+		dw[j] = w[4*(Nr)+j]; // On the first and last blocks we don't multiply by ainv
+	}
+	for (int i = 1; i < Nr; i++){
+		for(int j = 0; j < 4; j++){
+			dw[4*i+j] = AES_multColumn(AES_ainv,w[4*(Nr-i)+j]); // Multiply each word by ainv
+		}
+	}
+	for (int i = 0 ; i < 4; i++){
+		dw[4*Nr+i] = w[i]; //Final load
+	}
+	for (int i = 0; i < 4*(Nr+1); i++){
+		w[i] = dw[i]; //Load in the new values for w
+	}
+}
+
+/// Ciphers or Deciphers the state digest as described in the AES Documentation
+/// For Ciphering: ax = AES_a, table = sbox, shiftnum = 1
+/// For Deciphering: ax = AES_ainv, table = invsbox, shiftnum = 3
+/// Nr is the number of rounds
+/// For the output refer to the final state digest
+void AES_Cipher(uint32_t* key, AES_state* state, uint32_t ax, const uint8_t* table, uint8_t shiftnum, uint8_t Nr, uint32_t* w){
 	int i = 0;
+	
 	AES_AddRoundKey(state,w);
+	
 	while (i < Nr-1){
 		AES_SubBytes(state,table);
 		AES_ShiftRows(state,shiftnum);
@@ -191,13 +181,73 @@ void AES_Cipher(uint32_t* key, AES_state* state, uint32_t ax, uint8_t* table, ui
 		AES_AddRoundKey(state,w);
 		i+=1;
 	}
-
+	
 	AES_SubBytes(state,table);
 	AES_ShiftRows(state,shiftnum);
 	AES_AddRoundKey(state,w);
+	
+	state->round = 0;
 }
 
-//Find the (n-1)th byte in the word
+/// Find the (n-1)th byte in the word
 uint8_t AES_getByte(uint32_t a, uint8_t n){
-	return (uint8_t) (a >> ((4-n) << 3));
+	return (uint8_t) (a >> ((n) << 3));
+}
+
+/// Prints the current digest of the state in block form
+void PrintState(AES_state* state){
+    printf("State Value \n");
+    for (int i = 0; i < 4; i++){
+        for (int j = 0; j < 4; j++){
+            printf("%02x ",AES_getByte(state->digest[j],i));
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+/// Prints the value of the key register (w) at round (round) in block form
+void PrintRegister(uint32_t* w, uint8_t round){
+    printf("Register value \n");
+    for (int i = 0; i < 4; i++){
+        for (int j = 0; j < 4; j++){
+            printf("%02x ",AES_getByte(w[4*round+j],i));
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+
+/// Loads in hexdigits from a string into an array "key". 
+/// This does work for initiallizing states but be careful you don't type too little / too much
+void LoadKey(uint32_t* key, char* s){
+    int count = strlen(s);
+    int i = 0;
+    uint32_t dat = 0;
+    uint32_t bytes = 0;
+    uint32_t nibbles = 0;
+    while (i < count){
+        if (!isspace(s[i])){
+            if((nibbles&1)==0){
+                dat = hex2bin(s[i]) << 4;
+                nibbles+=1;
+            } else {
+                dat |= hex2bin(s[i]);
+                nibbles+=1;
+                key[(bytes>>2)] |= dat << (bytes << 3);
+                bytes += 1;
+            }
+        }
+        i+=1;
+    }
+}
+
+void AES_PrintOutput(uint32_t* digest, uint8_t size){
+	printf("Output: \n");
+	for (int i = 0; i < size; i++){
+		for(int j = 0; j < 4 ; j++)
+		printf("%02x", AES_getByte(digest[i], j));
+	}
+	printf("\n\n");
 }
